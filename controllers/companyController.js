@@ -181,3 +181,48 @@ exports.searchCompanies = async (req, res) => {
     res.status(500).json({ success: false });
   }
 };
+
+
+
+
+exports.updateCompanyProfile = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      company_name,
+      contact_number,
+      address,
+      city,
+      state,
+      country,
+      photo_url,
+    } = req.body;
+
+    await pool.query(
+      `UPDATE companies SET
+        company_name = ?,
+        contact_number = ?,
+        address = ?,
+        city = ?,
+        state = ?,
+        country = ?,
+        photo_url = ?
+       WHERE id = ?`,
+      [
+        company_name,
+        contact_number,
+        address,
+        city,
+        state,
+        country,
+        photo_url,
+        id,
+      ]
+    );
+
+    res.json({ success: true, message: "Profile updated" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false });
+  }
+};
