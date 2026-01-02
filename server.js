@@ -1,4 +1,3 @@
-require("dotenv").config();
 require("./config/db"); // ✅ IMPORTANT
 
 const express = require("express");
