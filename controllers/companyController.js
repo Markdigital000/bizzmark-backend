@@ -3,7 +3,8 @@ const bcrypt = require("bcrypt");
 
 /* ================= GENERATE COMPANY CODE ================= */
 const generateCompanyCode = async () => {
-  let code, exists = true;
+  let code;
+  let exists = true;
 
   while (exists) {
     code = `CMP-${new Date().getFullYear()}-${Math.random()
@@ -11,12 +12,14 @@ const generateCompanyCode = async () => {
       .substring(2, 7)
       .toUpperCase()}`;
 
-    const check = await pool.query(
-      "SELECT 1 FROM companies WHERE company_code = $1",
+    const [rows] = await pool.query(
+      "SELECT 1 FROM companies WHERE company_code = ?",
       [code]
     );
-    exists = check.rowCount > 0;
+
+    exists = rows.length > 0;
   }
+
   return code;
 };
 
@@ -40,12 +43,12 @@ exports.registerCompany = async (req, res) => {
       });
     }
 
-    const exists = await pool.query(
-      "SELECT 1 FROM companies WHERE email = $1",
+    const [existing] = await pool.query(
+      "SELECT 1 FROM companies WHERE email = ?",
       [email]
     );
 
-    if (exists.rowCount > 0) {
+    if (existing.length > 0) {
       return res.status(400).json({
         success: false,
         message: "Company already registered",
@@ -59,7 +62,7 @@ exports.registerCompany = async (req, res) => {
     await pool.query(
       `INSERT INTO companies
       (company_name, company_code, email, password, contact_number, photo_url, role, address, description)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         companyName,
         companycode,
@@ -78,11 +81,8 @@ exports.registerCompany = async (req, res) => {
       message: "Registration successful. Please login.",
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      success: false,
-      message: err.message,
-    });
+    console.error("REGISTER ERROR 👉", err);
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
@@ -91,26 +91,19 @@ exports.loginCompany = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const result = await pool.query(
-      "SELECT * FROM companies WHERE email = $1",
+    const [rows] = await pool.query(
+      "SELECT * FROM companies WHERE email = ?",
       [email]
     );
 
-    if (result.rowCount === 0) {
+    if (rows.length === 0) {
       return res.status(401).json({
         success: false,
         message: "Invalid email or password",
       });
     }
 
-    const company = result.rows[0];
-
-    if (!company.password) {
-      return res.status(500).json({
-        success: false,
-        message: "Password not set. Please re-register.",
-      });
-    }
+    const company = rows[0];
 
     const isMatch = await bcrypt.compare(password, company.password);
 
@@ -121,31 +114,30 @@ exports.loginCompany = async (req, res) => {
       });
     }
 
-res.json({
-  success: true,
-  company: {
-    id: company.id,
-    company_name: company.company_name,
-    company_code: company.company_code,
-    email: company.email,
-    contact_number: company.contact_number,
-    photo_url: company.photo_url,
-    address: company.address,
-    city: company.city,
-    state: company.state,
-    country: company.country,
-    role: company.role,
-    description: company.description,
-  },
-});
-
-
+    res.json({
+      success: true,
+      company: {
+        id: company.id,
+        company_name: company.company_name,
+        company_code: company.company_code,
+        email: company.email,
+        contact_number: company.contact_number,
+        photo_url: company.photo_url,
+        address: company.address,
+        city: company.city,
+        state: company.state,
+        country: company.country,
+        role: company.role,
+        description: company.description,
+      },
+    });
   } catch (err) {
     console.error("LOGIN ERROR 👉", err);
     res.status(500).json({ success: false });
   }
 };
 
+/* ================= UPDATE PROFILE ================= */
 exports.updateCompanyProfile = async (req, res) => {
   try {
     const { id } = req.params;
@@ -156,20 +148,19 @@ exports.updateCompanyProfile = async (req, res) => {
       city,
       state,
       country,
-      photo_url, // base64 OR filename
+      photo_url,
     } = req.body;
 
-    const result = await pool.query(
+    await pool.query(
       `UPDATE companies SET
-        company_name = $1,
-        contact_number = $2,
-        address = $3,
-        city = $4,
-        state = $5,
-        country = $6,
-        photo_url = $7
-       WHERE id = $8
-       RETURNING *`,
+        company_name = ?,
+        contact_number = ?,
+        address = ?,
+        city = ?,
+        state = ?,
+        country = ?,
+        photo_url = ?
+       WHERE id = ?`,
       [
         company_name,
         contact_number,
@@ -182,31 +173,17 @@ exports.updateCompanyProfile = async (req, res) => {
       ]
     );
 
-    res.json({
-      success: true,
-      company: result.rows[0],
-    });
+    res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error("UPDATE ERROR 👉", err);
     res.status(500).json({ success: false });
   }
 };
 
-
-
-
-
-
-
-
-
-
-
-
 /* ================= GET ALL COMPANIES ================= */
 exports.getAllCompanies = async (req, res) => {
   try {
-    const result = await pool.query(
+    const [rows] = await pool.query(
       `SELECT 
         id,
         company_name,
@@ -227,103 +204,69 @@ exports.getAllCompanies = async (req, res) => {
 
     res.json({
       success: true,
-      count: result.rowCount,
-      companies: result.rows,
+      count: rows.length,
+      companies: rows,
     });
   } catch (err) {
-    console.error("GET ALL COMPANIES ERROR 👉", err);
+    console.error("GET ALL ERROR 👉", err);
     res.status(500).json({ success: false });
   }
 };
 
-/* ================= GET COMPANY BY ID ================= */
+/* ================= GET BY ID ================= */
 exports.getCompanyById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const result = await pool.query(
-      `SELECT 
-        id,
-        company_name,
-        company_code,
-        email,
-        contact_number,
-        photo_url,
-        address,
-        city,
-        state,
-        country,
-        role,
-        description
-      FROM companies
-      WHERE id = $1`,
+    const [rows] = await pool.query(
+      "SELECT * FROM companies WHERE id = ?",
       [id]
     );
 
-    if (result.rowCount === 0) {
+    if (rows.length === 0) {
       return res.status(404).json({
         success: false,
         message: "Company not found",
       });
     }
 
-    res.json({
-      success: true,
-      company: result.rows[0],
-    });
+    res.json({ success: true, company: rows[0] });
   } catch (err) {
-    console.error("GET COMPANY BY ID ERROR 👉", err);
+    console.error("GET BY ID ERROR 👉", err);
     res.status(500).json({ success: false });
   }
 };
 
-/* ================= GET COMPANY BY CODE ================= */
+/* ================= GET BY CODE ================= */
 exports.getCompanyByCode = async (req, res) => {
   try {
     const { code } = req.params;
 
-    const result = await pool.query(
-      `SELECT 
-        id,
-        company_name,
-        company_code,
-        email,
-        contact_number,
-        photo_url,
-        address,
-        city,
-        state,
-        country,
-        role,
-        description
-      FROM companies
-      WHERE company_code = $1`,
+    const [rows] = await pool.query(
+      "SELECT * FROM companies WHERE company_code = ?",
       [code]
     );
 
-    if (result.rowCount === 0) {
+    if (rows.length === 0) {
       return res.status(404).json({
         success: false,
         message: "Company not found",
       });
     }
 
-    res.json({
-      success: true,
-      company: result.rows[0],
-    });
+    res.json({ success: true, company: rows[0] });
   } catch (err) {
-    console.error("GET COMPANY BY CODE ERROR 👉", err);
+    console.error("GET BY CODE ERROR 👉", err);
     res.status(500).json({ success: false });
   }
 };
 
-/* ================= SEARCH COMPANIES ================= */
+/* ================= SEARCH ================= */
 exports.searchCompanies = async (req, res) => {
   try {
     const { city, keyword } = req.query;
 
-    const result = await pool.query(
+    const [rows] = await pool.query(
       `SELECT 
         id,
         company_name,
@@ -336,21 +279,19 @@ exports.searchCompanies = async (req, res) => {
         role,
         description
       FROM companies
-      WHERE 
-        ($1::text IS NULL OR city ILIKE '%' || $1 || '%')
-      AND
-        ($2::text IS NULL OR company_name ILIKE '%' || $2 || '%')
+      WHERE (? IS NULL OR city LIKE CONCAT('%', ?, '%'))
+      AND (? IS NULL OR company_name LIKE CONCAT('%', ?, '%'))
       ORDER BY created_at DESC`,
-      [city || null, keyword || null]
+      [city || null, city || null, keyword || null, keyword || null]
     );
 
     res.json({
       success: true,
-      count: result.rowCount,
-      companies: result.rows,
+      count: rows.length,
+      companies: rows,
     });
   } catch (err) {
-    console.error("SEARCH COMPANIES ERROR 👉", err);
+    console.error("SEARCH ERROR 👉", err);
     res.status(500).json({ success: false });
   }
 };
