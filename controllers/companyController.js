@@ -191,3 +191,166 @@ exports.updateCompanyProfile = async (req, res) => {
     res.status(500).json({ success: false });
   }
 };
+
+
+
+
+
+
+
+
+
+
+
+
+/* ================= GET ALL COMPANIES ================= */
+exports.getAllCompanies = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT 
+        id,
+        company_name,
+        company_code,
+        email,
+        contact_number,
+        photo_url,
+        address,
+        city,
+        state,
+        country,
+        role,
+        description,
+        created_at
+      FROM companies
+      ORDER BY created_at DESC`
+    );
+
+    res.json({
+      success: true,
+      count: result.rowCount,
+      companies: result.rows,
+    });
+  } catch (err) {
+    console.error("GET ALL COMPANIES ERROR 👉", err);
+    res.status(500).json({ success: false });
+  }
+};
+
+/* ================= GET COMPANY BY ID ================= */
+exports.getCompanyById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      `SELECT 
+        id,
+        company_name,
+        company_code,
+        email,
+        contact_number,
+        photo_url,
+        address,
+        city,
+        state,
+        country,
+        role,
+        description
+      FROM companies
+      WHERE id = $1`,
+      [id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Company not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      company: result.rows[0],
+    });
+  } catch (err) {
+    console.error("GET COMPANY BY ID ERROR 👉", err);
+    res.status(500).json({ success: false });
+  }
+};
+
+/* ================= GET COMPANY BY CODE ================= */
+exports.getCompanyByCode = async (req, res) => {
+  try {
+    const { code } = req.params;
+
+    const result = await pool.query(
+      `SELECT 
+        id,
+        company_name,
+        company_code,
+        email,
+        contact_number,
+        photo_url,
+        address,
+        city,
+        state,
+        country,
+        role,
+        description
+      FROM companies
+      WHERE company_code = $1`,
+      [code]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Company not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      company: result.rows[0],
+    });
+  } catch (err) {
+    console.error("GET COMPANY BY CODE ERROR 👉", err);
+    res.status(500).json({ success: false });
+  }
+};
+
+/* ================= SEARCH COMPANIES ================= */
+exports.searchCompanies = async (req, res) => {
+  try {
+    const { city, keyword } = req.query;
+
+    const result = await pool.query(
+      `SELECT 
+        id,
+        company_name,
+        company_code,
+        photo_url,
+        address,
+        city,
+        state,
+        country,
+        role,
+        description
+      FROM companies
+      WHERE 
+        ($1::text IS NULL OR city ILIKE '%' || $1 || '%')
+      AND
+        ($2::text IS NULL OR company_name ILIKE '%' || $2 || '%')
+      ORDER BY created_at DESC`,
+      [city || null, keyword || null]
+    );
+
+    res.json({
+      success: true,
+      count: result.rowCount,
+      companies: result.rows,
+    });
+  } catch (err) {
+    console.error("SEARCH COMPANIES ERROR 👉", err);
+    res.status(500).json({ success: false });
+  }
+};
