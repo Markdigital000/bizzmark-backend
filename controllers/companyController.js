@@ -3,8 +3,7 @@ const bcrypt = require("bcrypt");
 
 /* ================= GENERATE COMPANY CODE ================= */
 const generateCompanyCode = async () => {
-  let code;
-  let exists = true;
+  let code, exists = true;
 
   while (exists) {
     code = `CMP-${new Date().getFullYear()}-${Math.random()
@@ -16,10 +15,8 @@ const generateCompanyCode = async () => {
       "SELECT 1 FROM companies WHERE company_code = ?",
       [code]
     );
-
     exists = rows.length > 0;
   }
-
   return code;
 };
 
@@ -37,22 +34,16 @@ exports.registerCompany = async (req, res) => {
     } = req.body;
 
     if (!password) {
-      return res.status(400).json({
-        success: false,
-        message: "Password is required",
-      });
+      return res.status(400).json({ success: false, message: "Password required" });
     }
 
-    const [existing] = await pool.query(
+    const [exists] = await pool.query(
       "SELECT 1 FROM companies WHERE email = ?",
       [email]
     );
 
-    if (existing.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Company already registered",
-      });
+    if (exists.length > 0) {
+      return res.status(400).json({ success: false, message: "Company already exists" });
     }
 
     const companycode = await generateCompanyCode();
@@ -76,13 +67,10 @@ exports.registerCompany = async (req, res) => {
       ]
     );
 
-    res.json({
-      success: true,
-      message: "Registration successful. Please login.",
-    });
+    res.json({ success: true, message: "Registered successfully" });
   } catch (err) {
-    console.error("REGISTER ERROR 👉", err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error(err);
+    res.status(500).json({ success: false });
   }
 };
 
@@ -97,85 +85,19 @@ exports.loginCompany = async (req, res) => {
     );
 
     if (rows.length === 0) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid email or password",
-      });
+      return res.status(401).json({ success: false });
     }
 
     const company = rows[0];
+    const match = await bcrypt.compare(password, company.password);
 
-    const isMatch = await bcrypt.compare(password, company.password);
-
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid email or password",
-      });
+    if (!match) {
+      return res.status(401).json({ success: false });
     }
 
-    res.json({
-      success: true,
-      company: {
-        id: company.id,
-        company_name: company.company_name,
-        company_code: company.company_code,
-        email: company.email,
-        contact_number: company.contact_number,
-        photo_url: company.photo_url,
-        address: company.address,
-        city: company.city,
-        state: company.state,
-        country: company.country,
-        role: company.role,
-        description: company.description,
-      },
-    });
+    res.json({ success: true, company });
   } catch (err) {
-    console.error("LOGIN ERROR 👉", err);
-    res.status(500).json({ success: false });
-  }
-};
-
-/* ================= UPDATE PROFILE ================= */
-exports.updateCompanyProfile = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const {
-      company_name,
-      contact_number,
-      address,
-      city,
-      state,
-      country,
-      photo_url,
-    } = req.body;
-
-    await pool.query(
-      `UPDATE companies SET
-        company_name = ?,
-        contact_number = ?,
-        address = ?,
-        city = ?,
-        state = ?,
-        country = ?,
-        photo_url = ?
-       WHERE id = ?`,
-      [
-        company_name,
-        contact_number,
-        address,
-        city,
-        state,
-        country,
-        photo_url,
-        id,
-      ]
-    );
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error("UPDATE ERROR 👉", err);
+    console.error(err);
     res.status(500).json({ success: false });
   }
 };
@@ -184,22 +106,9 @@ exports.updateCompanyProfile = async (req, res) => {
 exports.getAllCompanies = async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT 
-        id,
-        company_name,
-        company_code,
-        email,
-        contact_number,
-        photo_url,
-        address,
-        city,
-        state,
-        country,
-        role,
-        description,
-        created_at
-      FROM companies
-      ORDER BY created_at DESC`
+      `SELECT id, company_name, company_code, email, contact_number,
+       photo_url, address, city, state, country, role, description, created_at
+       FROM companies ORDER BY created_at DESC`
     );
 
     res.json({
@@ -208,55 +117,26 @@ exports.getAllCompanies = async (req, res) => {
       companies: rows,
     });
   } catch (err) {
-    console.error("GET ALL ERROR 👉", err);
+    console.error(err);
     res.status(500).json({ success: false });
   }
 };
 
-/* ================= GET BY ID ================= */
+/* ================= GET COMPANY BY ID ================= */
 exports.getCompanyById = async (req, res) => {
   try {
-    const { id } = req.params;
-
     const [rows] = await pool.query(
       "SELECT * FROM companies WHERE id = ?",
-      [id]
+      [req.params.id]
     );
 
     if (rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Company not found",
-      });
+      return res.status(404).json({ success: false });
     }
 
     res.json({ success: true, company: rows[0] });
   } catch (err) {
-    console.error("GET BY ID ERROR 👉", err);
-    res.status(500).json({ success: false });
-  }
-};
-
-/* ================= GET BY CODE ================= */
-exports.getCompanyByCode = async (req, res) => {
-  try {
-    const { code } = req.params;
-
-    const [rows] = await pool.query(
-      "SELECT * FROM companies WHERE company_code = ?",
-      [code]
-    );
-
-    if (rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Company not found",
-      });
-    }
-
-    res.json({ success: true, company: rows[0] });
-  } catch (err) {
-    console.error("GET BY CODE ERROR 👉", err);
+    console.error(err);
     res.status(500).json({ success: false });
   }
 };
@@ -267,31 +147,15 @@ exports.searchCompanies = async (req, res) => {
     const { city, keyword } = req.query;
 
     const [rows] = await pool.query(
-      `SELECT 
-        id,
-        company_name,
-        company_code,
-        photo_url,
-        address,
-        city,
-        state,
-        country,
-        role,
-        description
-      FROM companies
-      WHERE (? IS NULL OR city LIKE CONCAT('%', ?, '%'))
-      AND (? IS NULL OR company_name LIKE CONCAT('%', ?, '%'))
-      ORDER BY created_at DESC`,
-      [city || null, city || null, keyword || null, keyword || null]
+      `SELECT * FROM companies
+       WHERE (? IS NULL OR city LIKE CONCAT('%', ?, '%'))
+       AND (? IS NULL OR company_name LIKE CONCAT('%', ?, '%'))`,
+      [city, city, keyword, keyword]
     );
 
-    res.json({
-      success: true,
-      count: rows.length,
-      companies: rows,
-    });
+    res.json({ success: true, companies: rows });
   } catch (err) {
-    console.error("SEARCH ERROR 👉", err);
+    console.error(err);
     res.status(500).json({ success: false });
   }
 };
