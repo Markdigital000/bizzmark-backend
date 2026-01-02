@@ -3,7 +3,8 @@ const bcrypt = require("bcrypt");
 
 /* ================= GENERATE COMPANY CODE ================= */
 const generateCompanyCode = async () => {
-  let code, exists = true;
+  let exists = true;
+  let code;
 
   while (exists) {
     code = `CMP-${new Date().getFullYear()}-${Math.random()
@@ -12,11 +13,13 @@ const generateCompanyCode = async () => {
       .toUpperCase()}`;
 
     const [rows] = await pool.query(
-      "SELECT 1 FROM companies WHERE company_code = ?",
+      "SELECT id FROM companies WHERE company_code = ?",
       [code]
     );
+
     exists = rows.length > 0;
   }
+
   return code;
 };
 
@@ -38,25 +41,25 @@ exports.registerCompany = async (req, res) => {
     }
 
     const [exists] = await pool.query(
-      "SELECT 1 FROM companies WHERE email = ?",
+      "SELECT id FROM companies WHERE email = ?",
       [email]
     );
 
     if (exists.length > 0) {
-      return res.status(400).json({ success: false, message: "Company already exists" });
+      return res.status(400).json({ success: false, message: "Company exists" });
     }
 
-    const companycode = await generateCompanyCode();
+    const companyCode = await generateCompanyCode();
     const hashedPassword = await bcrypt.hash(password, 10);
     const photoUrl = req.file ? req.file.filename : null;
 
     await pool.query(
-      `INSERT INTO companies
+      `INSERT INTO companies 
       (company_name, company_code, email, password, contact_number, photo_url, role, address, description)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         companyName,
-        companycode,
+        companyCode,
         email,
         hashedPassword,
         contactNumber,
@@ -67,7 +70,7 @@ exports.registerCompany = async (req, res) => {
       ]
     );
 
-    res.json({ success: true, message: "Registered successfully" });
+    res.json({ success: true, message: "Registration successful" });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false });
@@ -89,9 +92,9 @@ exports.loginCompany = async (req, res) => {
     }
 
     const company = rows[0];
-    const match = await bcrypt.compare(password, company.password);
+    const isMatch = await bcrypt.compare(password, company.password);
 
-    if (!match) {
+    if (!isMatch) {
       return res.status(401).json({ success: false });
     }
 
@@ -106,9 +109,12 @@ exports.loginCompany = async (req, res) => {
 exports.getAllCompanies = async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT id, company_name, company_code, email, contact_number,
-       photo_url, address, city, state, country, role, description, created_at
-       FROM companies ORDER BY created_at DESC`
+      `SELECT 
+        id, company_name, company_code, email,
+        contact_number, photo_url, address,
+        city, state, country, role, description, created_at
+      FROM companies
+      ORDER BY created_at DESC`
     );
 
     res.json({
@@ -122,7 +128,7 @@ exports.getAllCompanies = async (req, res) => {
   }
 };
 
-/* ================= GET COMPANY BY ID ================= */
+/* ================= GET BY ID ================= */
 exports.getCompanyById = async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -136,7 +142,24 @@ exports.getCompanyById = async (req, res) => {
 
     res.json({ success: true, company: rows[0] });
   } catch (err) {
-    console.error(err);
+    res.status(500).json({ success: false });
+  }
+};
+
+/* ================= GET BY CODE ================= */
+exports.getCompanyByCode = async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT * FROM companies WHERE company_code = ?",
+      [req.params.code]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false });
+    }
+
+    res.json({ success: true, company: rows[0] });
+  } catch (err) {
     res.status(500).json({ success: false });
   }
 };
@@ -144,18 +167,17 @@ exports.getCompanyById = async (req, res) => {
 /* ================= SEARCH ================= */
 exports.searchCompanies = async (req, res) => {
   try {
-    const { city, keyword } = req.query;
+    const { city = "", keyword = "" } = req.query;
 
     const [rows] = await pool.query(
       `SELECT * FROM companies
-       WHERE (? IS NULL OR city LIKE CONCAT('%', ?, '%'))
-       AND (? IS NULL OR company_name LIKE CONCAT('%', ?, '%'))`,
-      [city, city, keyword, keyword]
+       WHERE city LIKE ? AND company_name LIKE ?
+       ORDER BY created_at DESC`,
+      [`%${city}%`, `%${keyword}%`]
     );
 
-    res.json({ success: true, companies: rows });
+    res.json({ success: true, count: rows.length, companies: rows });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ success: false });
   }
 };
