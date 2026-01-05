@@ -49,13 +49,13 @@ pool.getConnection((err, connection) => {
 // ======================
 // MIDDLEWARE
 // ======================
+// Fix CORS - remove HTTPS for localhost
 app.use(cors({
-    origin: ['https://localhost:5000', 'http://srv1235061.hstgr.cloud', 'http://srv1235061.hstgr.cloud:5000', 'https://localhost:5173'],
+    origin: ['http://localhost:5000', 'http://localhost:5173', 'http://srv1235061.hstgr.cloud', 'http://srv1235061.hstgr.cloud:5000'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
 }));
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -71,6 +71,16 @@ const companyRoutes = require('./routes/companyRoutes');
 // API ROUTES
 // ======================
 
+
+
+// Add before your routes
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  console.log('Body:', req.body);
+  next();
+});
+
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
     res.json({
@@ -83,6 +93,14 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+
+
+
+
+
+
+
+
 // Use company routes
 app.use('/api', companyRoutes);
 
@@ -94,7 +112,7 @@ app.use('/api', companyRoutes);
 app.use((req, res, next) => {
     res.status(404).json({
         success: false,
-        message: `Route ${req.origin} not found`,
+        message: `Route ${req.originalUrl} not found`,
         availableRoutes: [
             'POST /api/companies/register',
             'POST /api/companies/login',
