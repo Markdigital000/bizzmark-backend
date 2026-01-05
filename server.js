@@ -94,7 +94,7 @@ app.use('/api', companyRoutes);
 app.use((req, res, next) => {
     res.status(404).json({
         success: false,
-        message: `Route ${req.originalUrl} not found`,
+        message: `Route ${req.origin} not found`,
         availableRoutes: [
             'POST /api/companies/register',
             'POST /api/companies/login',
