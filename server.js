@@ -186,3 +186,58 @@ process.on('SIGINT', () => {
         process.exit(0);
     });
 });
+
+
+// Add this test route in server.js (temporarily)
+app.post('/api/test-login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        
+        console.log("Test login with:", { email, password });
+        
+        // Direct database query for testing
+        const [companies] = await global.db.query(
+            'SELECT * FROM companies WHERE email = ?',
+            [email]
+        );
+        
+        console.log("Found companies:", companies.length);
+        
+        if (companies.length === 0) {
+            return res.json({ 
+                success: false, 
+                message: 'Company not found',
+                query: 'SELECT * FROM companies WHERE email = ?',
+                params: [email]
+            });
+        }
+        
+        const company = companies[0];
+        console.log("Company password:", company.password);
+        console.log("Provided password:", password);
+        
+        if (company.password !== password) {
+            return res.json({ 
+                success: false, 
+                message: 'Invalid password',
+                db_password: company.password,
+                provided_password: password
+            });
+        }
+        
+        delete company.password;
+        res.json({ 
+            success: true, 
+            message: 'Login successful',
+            company: company 
+        });
+        
+    } catch (error) {
+        console.error("Test login error:", error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Server error',
+            error: error.message 
+        });
+    }
+});
