@@ -1,7 +1,8 @@
-// server.js
+// server.js - Updated to use companyRoutes.js
 const express = require('express');
 const mysql = require('mysql2');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -27,20 +28,12 @@ const PORT = process.env.PORT || 5000;
 const HOST = process.env.HOST || '0.0.0.0'; // IMPORTANT: Use 0.0.0.0 for external access
 
 // ======================
-// MIDDLEWARE
-// ======================
-app.use(cors({
-    origin: ['http://localhost:3000', 'http://srv1235061.hstgr.cloud', 'https://srv1235061.hstgr.cloud:5000'],
-    credentials: true
-}));
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// ======================
-// DATABASE CONNECTION
+// DATABASE CONNECTION (global pool for controllers)
 // ======================
 const pool = mysql.createPool(dbConfig);
+
+// Make the pool available globally (for controllers)
+global.db = pool.promise();
 
 // Test database connection
 pool.getConnection((err, connection) => {
@@ -52,6 +45,27 @@ pool.getConnection((err, connection) => {
         connection.release();
     }
 });
+
+// ======================
+// MIDDLEWARE
+// ======================
+app.use(cors({
+    origin: ['https://localhost:5000', 'http://srv1235061.hstgr.cloud', 'http://srv1235061.hstgr.cloud:5000', 'https://localhost:5173'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
+}));
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Serve static files (for uploaded images)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// ======================
+// IMPORT ROUTES
+// ======================
+const companyRoutes = require('./routes/companyRoutes');
 
 // ======================
 // API ROUTES
@@ -69,80 +83,8 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// Companies endpoint (from your requirement)
-app.get('/api/companies', async (req, res) => {
-    try {
-        const [rows] = await pool.promise().query('SELECT * FROM companies LIMIT 100');
-        res.json({
-            success: true,
-            count: rows.length,
-            data: rows
-        });
-    } catch (error) {
-        console.error('Database error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message,
-            message: 'Failed to fetch companies'
-        });
-    }
-});
-
-// Example: Get company by ID
-app.get('/api/companies/:id', async (req, res) => {
-    try {
-        const [rows] = await pool.promise().query('SELECT * FROM companies WHERE id = ?', [req.params.id]);
-        
-        if (rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: 'Company not found'
-            });
-        }
-        
-        res.json({
-            success: true,
-            data: rows[0]
-        });
-    } catch (error) {
-        console.error('Database error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// Example: Create company
-app.post('/api/companies', async (req, res) => {
-    try {
-        const { name, email, website } = req.body;
-        
-        if (!name) {
-            return res.status(400).json({
-                success: false,
-                message: 'Company name is required'
-            });
-        }
-        
-        const [result] = await pool.promise().query(
-            'INSERT INTO companies (name, email, website) VALUES (?, ?, ?)',
-            [name, email || null, website || null]
-        );
-        
-        res.status(201).json({
-            success: true,
-            message: 'Company created successfully',
-            id: result.insertId
-        });
-    } catch (error) {
-        console.error('Database error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
+// Use company routes
+app.use('/api', companyRoutes);
 
 // ======================
 // ERROR HANDLING
@@ -152,7 +94,17 @@ app.post('/api/companies', async (req, res) => {
 app.use((req, res, next) => {
     res.status(404).json({
         success: false,
-        message: `Route ${req.originalUrl} not found`
+        message: `Route ${req.originalUrl} not found`,
+        availableRoutes: [
+            'POST /api/companies/register',
+            'POST /api/companies/login',
+            'PUT /api/companies/profile/:id',
+            'GET /api/companies/search',
+            'GET /api/companies/code/:code',
+            'GET /api/companies/id/:id',
+            'GET /api/companies/',
+            'GET /api/health'
+        ]
     });
 });
 
@@ -179,14 +131,19 @@ const server = app.listen(PORT, HOST, () => {
 🌐 Public URL:        http://srv1235061.hstgr.cloud:${PORT}
 📡 API Base URL:      http://srv1235061.hstgr.cloud:${PORT}/api
 
-📊 API Endpoints:
-   • GET  /api/health       - Health check
-   • GET  /api/companies    - Get all companies
-   • GET  /api/companies/:id - Get company by ID
-   • POST /api/companies    - Create new company
+📊 AVAILABLE ENDPOINTS:
+   • POST   /api/companies/register     - Register new company
+   • POST   /api/companies/login        - Company login
+   • PUT    /api/companies/profile/:id  - Update company profile
+   • GET    /api/companies/search       - Search companies
+   • GET    /api/companies/code/:code   - Get company by code
+   • GET    /api/companies/id/:id       - Get company by ID
+   • GET    /api/companies/             - Get all companies
+   • GET    /api/health                 - Health check
 
 📊 Database: ${dbConfig.database}
 📊 Database Host: ${dbConfig.host}
+📊 Upload Directory: ${path.join(__dirname, 'uploads')}
 
 ⏰ Started at: ${new Date().toLocaleString()}
 🚀 Ready to accept connections...
