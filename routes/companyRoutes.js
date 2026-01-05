@@ -23,6 +23,6 @@ router.put("/profile/:id", updateCompanyProfile);
 router.get("/search", searchCompanies);
 router.get("/code/:code", getCompanyByCode);
 router.get("/id/:id", getCompanyById);
-router.get("/", getAllCompanies);
+router.get("/api/companies/", getAllCompanies);
 
 module.exports = router;
