@@ -30,7 +30,7 @@ const HOST = process.env.HOST || '0.0.0.0'; // IMPORTANT: Use 0.0.0.0 for extern
 // MIDDLEWARE
 // ======================
 app.use(cors({
-    origin: ['http://localhost:3000', 'http://srv1235061.hstgr.cloud', 'http://srv1235061.hstgr.cloud:3000'],
+    origin: ['http://localhost:3000', 'http://srv1235061.hstgr.cloud', 'https://srv1235061.hstgr.cloud:5000'],
     credentials: true
 }));
 
