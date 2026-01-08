@@ -77,31 +77,70 @@ exports.registerCompany = async (req, res) => {
   }
 };
 
-/* ================= LOGIN ================= */
+/* ================= LOGIN COMPANY ================= */
 exports.loginCompany = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { identifier, password } = req.body;
 
+    // identifier = email OR company_code
+    if (!identifier || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email/Company Code and password are required"
+      });
+    }
+
+    // Find company by email OR company_code
     const [rows] = await pool.query(
-      "SELECT * FROM companies WHERE email = ?",
-      [email]
+      `SELECT id, name, email, company_code, password, status 
+       FROM companies 
+       WHERE email = ? OR company_code = ?
+       LIMIT 1`,
+      [identifier, identifier]
     );
 
     if (rows.length === 0) {
-      return res.status(401).json({ success: false });
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email/company code or password"
+      });
     }
 
     const company = rows[0];
+
+    // Optional: block inactive companies
+    if (company.status === "inactive") {
+      return res.status(403).json({
+        success: false,
+        message: "Account is inactive. Contact support."
+      });
+    }
+
+    // Compare password
     const isMatch = await bcrypt.compare(password, company.password);
 
     if (!isMatch) {
-      return res.status(401).json({ success: false });
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email/company code or password"
+      });
     }
 
-    res.json({ success: true, company });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false });
+    // Remove password before sending response
+    delete company.password;
+
+    return res.status(200).json({
+      success: true,
+      message: "Login successful",
+      company
+    });
+
+  } catch (error) {
+    console.error("LOGIN ERROR:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error during login"
+    });
   }
 };
 
