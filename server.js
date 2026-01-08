@@ -167,6 +167,59 @@ app.use((err, req, res, next) => {
 });
 
 
+app.post('/api/companies/login', async (req, res) => {
+  try {
+    const { email, company_code, password } = req.body;
+
+    let query = '';
+    let value = '';
+
+    if (email) {
+      query = 'SELECT * FROM companies WHERE email = ?';
+      value = email;
+    } else if (company_code) {
+      query = 'SELECT * FROM companies WHERE company_code = ?';
+      value = company_code;
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Email or Company Code required'
+      });
+    }
+
+    const [rows] = await pool.promise().query(query, [value]);
+
+    if (rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+
+    const company = rows[0];
+    const isMatch = await bcrypt.compare(password, company.password);
+
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+
+    delete company.password;
+
+    res.json({
+      success: true,
+      company
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Login failed'
+    });
+  }
+});
 
 app.use("/api/companies", require("./routes/companyRoutes"));
 
