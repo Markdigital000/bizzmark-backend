@@ -166,6 +166,10 @@ app.use((err, req, res, next) => {
     });
 });
 
+
+
+app.use("/api/companies", require("./routes/companyRoutes"));
+
 // ======================
 // START SERVER
 // ======================
