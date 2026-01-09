@@ -40,6 +40,7 @@ app.use(
       "http://srv1235061.hstgr.cloud",
       "http://srv1235061.hstgr.cloud:5000",
       "http://srv1235061.hstgr.cloud:5000/api/companies/login"
+      "https://srv1235061.hstgr.cloud:5000/api/companies/login"
       
     ],
     credentials: true,
