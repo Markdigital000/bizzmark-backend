@@ -34,11 +34,11 @@ const HOST = process.env.HOST || "0.0.0.0";
 app.use(
   cors({
     origin: [
-      "http://localhost:3000",
+      "http://localhost:5000",
       "https://bizzmarkindia.com/",
       "https://bizzmarkindia.com/login",
       "http://srv1235061.hstgr.cloud",
-      "http://srv1235061.hstgr.cloud:3000",
+      "http://srv1235061.hstgr.cloud:5000",
       
     ],
     credentials: true,
