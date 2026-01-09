@@ -36,6 +36,7 @@ app.use(
     origin: [
       "http://localhost:3000",
       "http://bizzmarkindia.com/",
+      "http://bizzmarkindia.com/login",
       "http://srv1235061.hstgr.cloud",
       "http://srv1235061.hstgr.cloud:3000",
       
