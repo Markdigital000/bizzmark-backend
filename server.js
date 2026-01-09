@@ -37,6 +37,7 @@ app.use(
       "http://localhost:3000",
       "http://srv1235061.hstgr.cloud",
       "http://srv1235061.hstgr.cloud:3000",
+      "http://srv1235061.hstgr.cloud:5000",
     ],
     credentials: true,
   })
