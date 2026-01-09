@@ -34,14 +34,9 @@ const HOST = process.env.HOST || "0.0.0.0";
 app.use(
   cors({
     origin: [
-      "http://localhost:5000",
-      "https://bizzmarkindia.com/",
-      "https://bizzmarkindia.com/login",
+      "https://bizzmarkindia.com",
       "http://srv1235061.hstgr.cloud",
-      "http://srv1235061.hstgr.cloud:5000",
-      "http://srv1235061.hstgr.cloud:5000/api/companies/login",
-      "https://srv1235061.hstgr.cloud:5000/api/companies/login"
-      
+      "http://localhost:3000"
     ],
     credentials: true,
   })
