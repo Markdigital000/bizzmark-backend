@@ -1,267 +1,362 @@
-const pool = require("../config/db");
+const db = require("../config/db");
 const bcrypt = require("bcrypt");
-
-/* ================= GENERATE COMPANY CODE ================= */
-const generateCompanyCode = async () => {
-  let exists = true;
-  let code;
-
-  while (exists) {
-    code = `CMP-${new Date().getFullYear()}-${Math.random()
-      .toString(36)
-      .substring(2, 7)
-      .toUpperCase()}`;
-
-    const [rows] = await pool.query(
-      "SELECT id FROM companies WHERE company_code = ?",
-      [code]
-    );
-
-    exists = rows.length > 0;
-  }
-
-  return code;
-};
-
-/* ================= REGISTER ================= */
-exports.registerCompany = async (req, res) => {
+ 
+const registerCompany = async (req, res) => {
   try {
     const {
-      companyName,
+      company_name,
+      company_code,
       email,
-      password,
-      contactNumber,
-      role,
+      contact_number,
       address,
+      role,
       description,
+      terms_agreed,
+      password
     } = req.body;
-
-    if (!password) {
-      return res.status(400).json({ success: false, message: "Password required" });
+ 
+    if (!company_name || !company_code || !email || !contact_number || !address || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "All required fields must be filled"
+      });
     }
-
-    const [exists] = await pool.query(
+ 
+    const photo_url = req.file ? `/uploads/${req.file.filename}` : null;
+ 
+    // 🔍 Check company code
+    const [existingCode] = await db.query(
+      "SELECT id FROM companies WHERE company_code = ?",
+      [company_code]
+    );
+ 
+    if (existingCode.length > 0) {
+      return res.status(400).json({ success: false, message: "Company code already exists" });
+    }
+ 
+    // 🔍 Check email
+    const [existingEmail] = await db.query(
       "SELECT id FROM companies WHERE email = ?",
       [email]
     );
-
-    if (exists.length > 0) {
-      return res.status(400).json({ success: false, message: "Company exists" });
+ 
+    if (existingEmail.length > 0) {
+      return res.status(400).json({ success: false, message: "Email already registered" });
     }
-
-    const companyCode = await generateCompanyCode();
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const photoUrl = req.file ? req.file.filename : null;
-
-    await pool.query(
-      `INSERT INTO companies 
-      (company_name, company_code, email, password, contact_number, photo_url, role, address, description)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+ 
+    // 💾 Insert
+    const [result] = await db.query(
+      `INSERT INTO companies
+      (company_name, company_code, email, contact_number, address, role, description, terms_agreed, photo_url, password)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        companyName,
-        companyCode,
+        company_name,
+        company_code,
         email,
-        hashedPassword,
-        contactNumber,
-        photoUrl,
-        role,
+        contact_number,
         address,
-        description,
+        role || null,
+        description || null,
+        terms_agreed ? 1 : 0,
+        photo_url,
+        password
       ]
     );
-
-    res.json({ success: true, message: "Registration successful" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false });
+ 
+    res.status(201).json({
+      success: true,
+      message: "Company registered successfully",
+      id: result.insertId
+    });
+ 
+  } catch (error) {
+    console.error("Registration error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
-
-/* ================= LOGIN COMPANY ================= */
-exports.loginCompany = async (req, res) => {
+ 
+module.exports = { registerCompany };
+ 
+ 
+// const bcrypt = require("bcrypt");
+ 
+const loginCompany = async (req, res) => {
   try {
-    const { identifier, password } = req.body;
-
-    // identifier = email OR company_code
-    if (!identifier || !password) {
+    const { email, password } = req.body;
+ 
+    if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: "Email/Company Code and password are required"
+        message: "Email and password required",
       });
     }
-
-    // Find company by email OR company_code
-    const [rows] = await pool.query(
-      `SELECT id, name, email, company_code, password, status 
-       FROM companies 
-       WHERE email = ? OR company_code = ?
-       LIMIT 1`,
-      [identifier, identifier]
+ 
+    const [companies] = await global.db.query(
+      "SELECT * FROM companies WHERE email = ?",
+      [email]
     );
-
-    if (rows.length === 0) {
+ 
+    if (companies.length === 0) {
       return res.status(401).json({
         success: false,
-        message: "Invalid email/company code or password"
+        message: "Invalid email or password",
       });
     }
-
-    const company = rows[0];
-
-    // Optional: block inactive companies
-    if (company.status === "inactive") {
-      return res.status(403).json({
-        success: false,
-        message: "Account is inactive. Contact support."
-      });
-    }
-
-    // Compare password
+ 
+    const company = companies[0];
+ 
+    // 🔐 bcrypt compare
     const isMatch = await bcrypt.compare(password, company.password);
-
+ 
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: "Invalid email/company code or password"
+        message: "Invalid email or password",
       });
     }
-
-    // Remove password before sending response
+ 
+    // 🔥 password hide
     delete company.password;
-
-    return res.status(200).json({
-      success: true,
-      message: "Login successful",
-      company
-    });
-
-  } catch (error) {
-    console.error("LOGIN ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error during login"
-    });
-  }
-};
-
-/* ================= GET ALL COMPANIES ================= */
-exports.getAllCompanies = async (req, res) => {
-  try {
-    const [rows] = await pool.query(
-      `SELECT 
-        id, company_name, company_code, email,
-        contact_number, photo_url, address,
-        city, state, country, role, description, created_at
-      FROM companies
-      ORDER BY created_at DESC`
-    );
-
+ 
     res.json({
       success: true,
-      count: rows.length,
-      companies: rows,
+      message: "Login successful",
+      company,
     });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false });
+ 
+  } catch (error) {
+    console.error("Login error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Login failed",
+    });
   }
 };
-
-/* ================= GET BY ID ================= */
-exports.getCompanyById = async (req, res) => {
-  try {
-    const [rows] = await pool.query(
-      "SELECT * FROM companies WHERE id = ?",
-      [req.params.id]
-    );
-
-    if (rows.length === 0) {
-      return res.status(404).json({ success: false });
+ 
+ 
+ 
+const getAllCompanies = async (req, res) => {
+    try {
+        const [companies] = await global.db.query(
+            'SELECT * FROM companies ORDER BY created_at DESC'
+        );
+ 
+        res.json({
+            success: true,
+            count: companies.length,
+            data: companies
+        });
+ 
+    } catch (error) {
+        console.error('Get companies error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch companies',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
-
-    res.json({ success: true, company: rows[0] });
-  } catch (err) {
-    res.status(500).json({ success: false });
-  }
 };
-
-/* ================= GET BY CODE ================= */
-exports.getCompanyByCode = async (req, res) => {
-  try {
-    const [rows] = await pool.query(
-      "SELECT * FROM companies WHERE company_code = ?",
-      [req.params.code]
-    );
-
-    if (rows.length === 0) {
-      return res.status(404).json({ success: false });
+ 
+const getCompanyById = async (req, res) => {
+    try {
+        const { id } = req.params;
+ 
+        const [companies] = await global.db.query(
+            'SELECT * FROM companies WHERE id = ?',
+            [id]
+        );
+ 
+        if (companies.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Company not found'
+            });
+        }
+ 
+        res.json({
+            success: true,
+            data: companies[0]
+        });
+ 
+    } catch (error) {
+        console.error('Get company by ID error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch company',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
-
-    res.json({ success: true, company: rows[0] });
-  } catch (err) {
-    res.status(500).json({ success: false });
-  }
 };
-
-/* ================= SEARCH ================= */
-exports.searchCompanies = async (req, res) => {
-  try {
-    const { city = "", keyword = "" } = req.query;
-
-    const [rows] = await pool.query(
-      `SELECT * FROM companies
-       WHERE city LIKE ? AND company_name LIKE ?
-       ORDER BY created_at DESC`,
-      [`%${city}%`, `%${keyword}%`]
-    );
-
-    res.json({ success: true, count: rows.length, companies: rows });
-  } catch (err) {
-    res.status(500).json({ success: false });
-  }
+ 
+const getCompanyByCode = async (req, res) => {
+    try {
+        const { code } = req.params;
+ 
+        const [companies] = await global.db.query(
+            'SELECT * FROM companies WHERE company_code = ?',
+            [code]
+        );
+ 
+        if (companies.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Company not found'
+            });
+        }
+ 
+        res.json({
+            success: true,
+            data: companies[0]
+        });
+ 
+    } catch (error) {
+        console.error('Get company by code error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch company',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
 };
-
-
-
-
-exports.updateCompanyProfile = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const {
-      company_name,
-      contact_number,
-      address,
-      city,
-      state,
-      country,
-      photo_url,
-    } = req.body;
-
-    await pool.query(
-      `UPDATE companies SET
-        company_name = ?,
-        contact_number = ?,
-        address = ?,
-        city = ?,
-        state = ?,
-        country = ?,
-        photo_url = ?
-       WHERE id = ?`,
-      [
-        company_name,
-        contact_number,
-        address,
-        city,
-        state,
-        country,
-        photo_url,
-        id,
-      ]
-    );
-
-    res.json({ success: true, message: "Profile updated" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false });
-  }
+ 
+const searchCompanies = async (req, res) => {
+    try {
+        const { q, page = 1, limit = 10 } = req.query;
+        const offset = (page - 1) * limit;
+ 
+        if (!q || q.trim() === '') {
+            return res.status(400).json({
+                success: false,
+                message: 'Search query is required'
+            });
+        }
+ 
+        const searchTerm = `%${q}%`;
+       
+        // Search in multiple fields
+        const [companies] = await global.db.query(
+            `SELECT * FROM companies
+            WHERE company_name LIKE ?
+               OR company_code LIKE ?
+               OR email LIKE ?
+               OR role LIKE ?
+            ORDER BY created_at DESC
+            LIMIT ? OFFSET ?`,
+            [searchTerm, searchTerm, searchTerm, searchTerm, parseInt(limit), offset]
+        );
+ 
+        // Get total count for pagination
+        const [countResult] = await global.db.query(
+            `SELECT COUNT(*) as total FROM companies
+            WHERE company_name LIKE ?
+               OR company_code LIKE ?
+               OR email LIKE ?
+               OR role LIKE ?`,
+            [searchTerm, searchTerm, searchTerm, searchTerm]
+        );
+ 
+        const total = countResult[0].total;
+        const totalPages = Math.ceil(total / limit);
+ 
+        res.json({
+            success: true,
+            data: companies,
+            pagination: {
+                currentPage: parseInt(page),
+                totalPages,
+                totalItems: total,
+                itemsPerPage: parseInt(limit)
+            }
+        });
+ 
+    } catch (error) {
+        console.error('Search companies error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to search companies',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+};
+ 
+const updateCompanyProfile = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updateFields = req.body;
+ 
+        // Check if company exists
+        const [existingCompany] = await global.db.query(
+            'SELECT id FROM companies WHERE id = ?',
+            [id]
+        );
+ 
+        if (existingCompany.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Company not found'
+            });
+        }
+ 
+        // Handle file upload if exists
+        if (req.file) {
+            updateFields.photo_url = `/uploads/${req.file.filename}`;
+        }
+ 
+        // Remove empty fields and id field
+        Object.keys(updateFields).forEach(key => {
+            if (updateFields[key] === '' || key === 'id') {
+                delete updateFields[key];
+            }
+        });
+ 
+        if (Object.keys(updateFields).length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No fields to update'
+            });
+        }
+ 
+        // Build dynamic update query
+        const setClause = Object.keys(updateFields)
+            .map(key => `${key} = ?`)
+            .join(', ');
+       
+        const values = Object.values(updateFields);
+        values.push(id); // For WHERE clause
+ 
+        await global.db.query(
+            `UPDATE companies SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+            values
+        );
+ 
+        // Get updated company
+        const [updatedCompany] = await global.db.query(
+            'SELECT * FROM companies WHERE id = ?',
+            [id]
+        );
+ 
+        res.json({
+            success: true,
+            message: 'Company profile updated successfully',
+            data: updatedCompany[0]
+        });
+ 
+    } catch (error) {
+        console.error('Update company error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update company profile',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+};
+ 
+module.exports = {
+    registerCompany,
+    loginCompany,
+    getAllCompanies,
+    getCompanyById,
+    getCompanyByCode,
+    searchCompanies,
+    updateCompanyProfile
 };
