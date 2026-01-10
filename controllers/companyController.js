@@ -1,52 +1,56 @@
 const db = require("../config/db");
 const bcrypt = require("bcrypt");
- 
+
 const registerCompany = async (req, res) => {
   try {
     const {
-      company_name,
-      company_code,
-      email,
-      contact_number,
-      address,
-      role,
-      description,
-      terms_agreed,
-      password
-    } = req.body;
- 
+  company_name,
+  company_code,
+  email,
+  contact_number,
+  address,
+  role,
+  description,
+  terms_agreed,
+  password,
+  city,
+  state,
+  country
+} = req.body;
+
+
     if (!company_name || !company_code || !email || !contact_number || !address || !password) {
       return res.status(400).json({
         success: false,
         message: "All required fields must be filled"
       });
     }
- 
+
     const photo_url = req.file ? `/uploads/${req.file.filename}` : null;
- 
+
     // 🔍 Check company code
     const [existingCode] = await db.query(
       "SELECT id FROM companies WHERE company_code = ?",
       [company_code]
     );
- 
+
     if (existingCode.length > 0) {
       return res.status(400).json({ success: false, message: "Company code already exists" });
     }
- 
+
     // 🔍 Check email
     const [existingEmail] = await db.query(
       "SELECT id FROM companies WHERE email = ?",
       [email]
     );
- 
+
     if (existingEmail.length > 0) {
       return res.status(400).json({ success: false, message: "Email already registered" });
     }
- 
+
     // 💾 Insert
     const [result] = await db.query(
-      `INSERT INTO companies
+      `INSERT INTO companies 
       (company_name, company_code, email, contact_number, address, role, description, terms_agreed, photo_url, password)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -62,68 +66,68 @@ const registerCompany = async (req, res) => {
         password
       ]
     );
- 
+
     res.status(201).json({
       success: true,
       message: "Company registered successfully",
       id: result.insertId
     });
- 
+
   } catch (error) {
     console.error("Registration error:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
- 
+
 module.exports = { registerCompany };
- 
- 
+
+
 // const bcrypt = require("bcrypt");
- 
+
 const loginCompany = async (req, res) => {
   try {
     const { email, password } = req.body;
- 
+
     if (!email || !password) {
       return res.status(400).json({
         success: false,
         message: "Email and password required",
       });
     }
- 
+
     const [companies] = await global.db.query(
       "SELECT * FROM companies WHERE email = ?",
       [email]
     );
- 
+
     if (companies.length === 0) {
       return res.status(401).json({
         success: false,
         message: "Invalid email or password",
       });
     }
- 
+
     const company = companies[0];
- 
+
     // 🔐 bcrypt compare
     const isMatch = await bcrypt.compare(password, company.password);
- 
+
     if (!isMatch) {
       return res.status(401).json({
         success: false,
         message: "Invalid email or password",
       });
     }
- 
+
     // 🔥 password hide
     delete company.password;
- 
+
     res.json({
       success: true,
       message: "Login successful",
       company,
     });
- 
+
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({
@@ -132,8 +136,34 @@ const loginCompany = async (req, res) => {
     });
   }
 };
- 
- 
+
+const photo_url = req.file ? `/uploads/${req.file.filename}` : null;
+
+const hashedPassword = await bcrypt.hash(password, 10);
+
+const [result] = await db.query(
+  `INSERT INTO companies (
+    company_name, company_code, email, contact_number,
+    address, city, state, country,
+    role, description, terms_agreed, photo_url, password
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  [
+    company_name,
+    company_code,
+    email,
+    contact_number,
+    address,
+    city,
+    state,
+    country,
+    role || null,
+    description || null,
+    terms_agreed ? 1 : 0,
+    photo_url,
+    hashedPassword
+  ]
+);
+
  
 const getAllCompanies = async (req, res) => {
     try {
