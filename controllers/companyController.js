@@ -9,60 +9,99 @@ const registerCompany = async (req, res) => {
       email,
       contact_number,
       address,
+      city,
+      state,
+      country,
       role,
       description,
       terms_agreed,
       password
     } = req.body;
 
-    if (!company_name || !company_code || !email || !contact_number || !address || !password) {
+    // ✅ Required validation
+    if (
+      !company_name ||
+      !company_code ||
+      !email ||
+      !contact_number ||
+      !address ||
+      !city ||
+      !state ||
+      !country ||
+      !password
+    ) {
       return res.status(400).json({
         success: false,
-        message: "All required fields must be filled"
+        message: "All required fields must be filled",
       });
     }
 
-    // ✅ HASH PASSWORD
+    // 🔐 Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const photo_url = req.file ? `/uploads/${req.file.filename}` : null;
 
+    // 🔍 Email check
     const [existingEmail] = await global.db.query(
       "SELECT id FROM companies WHERE email = ?",
       [email]
     );
 
     if (existingEmail.length > 0) {
-      return res.status(400).json({ success: false, message: "Email already registered" });
+      return res.status(400).json({
+        success: false,
+        message: "Email already registered",
+      });
     }
 
+    // 💾 INSERT
     const [result] = await global.db.query(
       `INSERT INTO companies
-      (company_name, company_code, email, contact_number, address, role, description, terms_agreed, photo_url, password)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (
+        company_name,
+        company_code,
+        email,
+        contact_number,
+        address,
+        city,
+        state,
+        country,
+        role,
+        description,
+        terms_agreed,
+        photo_url,
+        password
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         company_name,
         company_code,
         email,
         contact_number,
         address,
+        city,
+        state,
+        country,
         role || null,
         description || null,
         terms_agreed ? 1 : 0,
         photo_url,
-        hashedPassword // ✅ STORE HASH
+        hashedPassword
       ]
     );
 
     res.status(201).json({
       success: true,
       message: "Company registered successfully",
-      id: result.insertId
+      id: result.insertId,
     });
 
   } catch (error) {
     console.error("Registration error:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };
  
