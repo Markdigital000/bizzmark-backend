@@ -14,38 +14,29 @@ const registerCompany = async (req, res) => {
       terms_agreed,
       password
     } = req.body;
- 
+
     if (!company_name || !company_code || !email || !contact_number || !address || !password) {
       return res.status(400).json({
         success: false,
         message: "All required fields must be filled"
       });
     }
- 
+
+    // ✅ HASH PASSWORD
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     const photo_url = req.file ? `/uploads/${req.file.filename}` : null;
- 
-    // 🔍 Check company code
-    const [existingCode] = await db.query(
-      "SELECT id FROM companies WHERE company_code = ?",
-      [company_code]
-    );
- 
-    if (existingCode.length > 0) {
-      return res.status(400).json({ success: false, message: "Company code already exists" });
-    }
- 
-    // 🔍 Check email
-    const [existingEmail] = await db.query(
+
+    const [existingEmail] = await global.db.query(
       "SELECT id FROM companies WHERE email = ?",
       [email]
     );
- 
+
     if (existingEmail.length > 0) {
       return res.status(400).json({ success: false, message: "Email already registered" });
     }
- 
-    // 💾 Insert
-    const [result] = await db.query(
+
+    const [result] = await global.db.query(
       `INSERT INTO companies
       (company_name, company_code, email, contact_number, address, role, description, terms_agreed, photo_url, password)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -59,16 +50,16 @@ const registerCompany = async (req, res) => {
         description || null,
         terms_agreed ? 1 : 0,
         photo_url,
-        password
+        hashedPassword // ✅ STORE HASH
       ]
     );
- 
+
     res.status(201).json({
       success: true,
       message: "Company registered successfully",
       id: result.insertId
     });
- 
+
   } catch (error) {
     console.error("Registration error:", error);
     res.status(500).json({ success: false, message: "Server error" });
