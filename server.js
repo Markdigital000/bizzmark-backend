@@ -35,6 +35,7 @@ app.use(
   cors({
     origin: [
       "https://bizzmarkindia.com",
+      "https://api.bizzmarkindia.com", // ✅ ADD THIS
       "http://srv1235061.hstgr.cloud",
       "http://localhost:3000"
     ],
