@@ -16,14 +16,14 @@ const fileFilter = (req, file, cb) => {
   if (ext && mime) {
     cb(null, true);
   } else {
-    cb(new Error("Only images allowed (jpg, png, webp)"));
+    cb(new Error("Only image files are allowed"));
   }
 };
 
 module.exports = multer({
   storage,
   limits: {
-    fileSize: 5 * 1024 * 1024, // ✅ 5MB
+    fileSize: 10 * 1024 * 1024, // ✅ 10 MB
   },
   fileFilter,
 });
