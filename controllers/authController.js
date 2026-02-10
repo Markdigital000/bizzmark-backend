@@ -1,78 +1,71 @@
-const db = require("../config/db"); // mysql connection
-const bcrypt = require("bcryptjs");
-const sendEmail = require("../utils/sendEmail");
+const db = global.db;
+const crypto = require("crypto");
 
-exports.login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
+/* ===============================
+   SEND OTP
+================================ */
+exports.sendOtp = async (req, res) => {
+  const { mobile } = req.body;
 
-    const [rows] = await db.query(
-      "SELECT * FROM companies WHERE email = ?",
-      [email]
-    );
-
-    if (rows.length === 0)
-      return res.status(400).json({ message: "User not found" });
-
-    const company = rows[0];
-
-    const match = await bcrypt.compare(password, company.password);
-    if (!match)
-      return res.status(400).json({ message: "Invalid password" });
-
-    // generate otp
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiry = Date.now() + 5 * 60 * 1000;
-
-    await db.query(
-      "UPDATE companies SET otp = ?, otp_expiry = ? WHERE email = ?",
-      [otp, expiry, email]
-    );
-
-    await sendEmail(
-      email,
-      "Your Login OTP",
-      `Your OTP is ${otp}. Valid for 5 minutes.`
-    );
-
-    res.json({ success: true });
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ message: "Server error" });
+  if (!mobile || mobile.length < 10) {
+    return res.status(400).json({ success: false, message: "Invalid mobile number" });
   }
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 min
+
+  await db.query(
+    `INSERT INTO otp_verifications (mobile, otp, expires_at)
+     VALUES (?, ?, ?)`,
+    [mobile, otp, expiresAt]
+  );
+
+  // 👉 SEND OTP HERE (SMS API)
+  console.log("OTP for testing:", otp);
+
+  res.json({
+    success: true,
+    message: "OTP sent successfully"
+  });
 };
 
-exports.verifyOTP = async (req, res) => {
-  try {
-    const { email, otp } = req.body;
+/* ===============================
+   VERIFY OTP
+================================ */
+exports.verifyOtp = async (req, res) => {
+  const { mobile, otp } = req.body;
 
-    const [rows] = await db.query(
-      "SELECT * FROM companies WHERE email = ?",
-      [email]
-    );
+  const [rows] = await db.query(
+    `SELECT * FROM otp_verifications
+     WHERE mobile=? AND otp=? AND verified=0
+     ORDER BY id DESC LIMIT 1`,
+    [mobile, otp]
+  );
 
-    if (rows.length === 0)
-      return res.status(400).json({ message: "User not found" });
-
-    const company = rows[0];
-
-    if (company.otp !== otp)
-      return res.status(400).json({ message: "Invalid OTP" });
-
-    if (company.otp_expiry < Date.now())
-      return res.status(400).json({ message: "OTP expired" });
-
-    // clear otp
-    await db.query(
-      "UPDATE companies SET otp = NULL, otp_expiry = NULL WHERE email = ?",
-      [email]
-    );
-
-    res.json({
-      success: true,
-      company,
-    });
-  } catch (err) {
-    res.status(500).json({ message: "Server error" });
+  if (!rows.length) {
+    return res.status(400).json({ success: false, message: "Invalid OTP" });
   }
+
+  const record = rows[0];
+
+  if (new Date(record.expires_at) < new Date()) {
+    return res.status(400).json({ success: false, message: "OTP expired" });
+  }
+
+  await db.query(
+    `UPDATE otp_verifications SET verified=1 WHERE id=?`,
+    [record.id]
+  );
+
+  // 👉 Fetch / create company here
+  const company = {
+    mobile,
+    company_name: "BizMark User"
+  };
+
+  res.json({
+    success: true,
+    message: "Login successful",
+    company
+  });
 };
