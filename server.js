@@ -5,6 +5,7 @@ require("dotenv").config();
  
 // 🔹 IMPORT ROUTES
 const companyRoutes = require("./routes/companyRoutes");
+const authRoutes = require("./routes/authRoutes");
  
 const app = express();
  
@@ -73,6 +74,7 @@ pool.getConnection((err, connection) => {
  
 // 🔹 COMPANY ROUTES
 app.use("/api/companies", companyRoutes);
+app.use("/api/auth", require("./routes/authRoutes"));
  
 // 🔹 HEALTH CHECK
 app.get("/api/health", (req, res) => {
