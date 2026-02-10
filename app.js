@@ -8,6 +8,7 @@ app.use(cors());
 
 // Use Routes
 app.use("/api", staffRoutes);
+app.use("/api/auth", require("./routes/authRoutes"));
 
 // Start Server
 app.listen(5000, () => {
