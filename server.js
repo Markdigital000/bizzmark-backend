@@ -5,7 +5,6 @@ require("dotenv").config();
  
 // 🔹 IMPORT ROUTES
 const companyRoutes = require("./routes/companyRoutes");
-const authRoutes = require("./routes/authRoutes");
  
 const app = express();
  
@@ -40,12 +39,10 @@ app.use(
       "http://srv1235061.hstgr.cloud",
       "http://localhost:3000"
     ],
-   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   })
 );
- app.use(express.json());
+ 
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 
@@ -76,7 +73,6 @@ pool.getConnection((err, connection) => {
  
 // 🔹 COMPANY ROUTES
 app.use("/api/companies", companyRoutes);
-app.use("/api/auth", require("./routes/authRoutes"));
  
 // 🔹 HEALTH CHECK
 app.get("/api/health", (req, res) => {
