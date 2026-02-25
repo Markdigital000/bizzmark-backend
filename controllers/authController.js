@@ -1,74 +1,55 @@
-const db = require("../config/db");
 const bcrypt = require("bcryptjs");
-const sendSMS = require("../utils/sendSMS");
+const db = require("../config/db");
 
-exports.login = async (req, res) => {
+// ================= VERIFY EMAIL =================
+exports.verifyEmail = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.json({ success: false, message: "Email required" });
+  }
+
   try {
-    const { email, password } = req.body;
-
-    const [rows] = await db.query(
-      "SELECT * FROM companies WHERE email = ?",
+    const [user] = await db.query(
+      "SELECT * FROM companies WHERE email=?",
       [email]
     );
 
-    if (rows.length === 0)
-      return res.status(400).json({ message: "User not found" });
+    if (user.length === 0) {
+      return res.json({ success: false, message: "Email not registered" });
+    }
 
-    const company = rows[0];
+    return res.json({ success: true, message: "Email verified" });
 
-    const match = await bcrypt.compare(password, company.password);
-    if (!match)
-      return res.status(400).json({ message: "Invalid password" });
-
-    // generate otp
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiry = Date.now() + 5 * 60 * 1000;
-
-    await db.query(
-      "UPDATE companies SET otp = ?, otp_expiry = ? WHERE email = ?",
-      [otp, expiry, email]
-    );
-
-    // ✅ send sms
-    await sendSMS(company.phone, otp);
-
-    res.json({ success: true, message: "OTP sent to mobile" });
   } catch (err) {
     console.log(err);
-    res.status(500).json({ message: "Server error" });
+    return res.json({ success: false, message: "Server error" });
   }
 };
 
-exports.verifyOTP = async (req, res) => {
+// ================= RESET PASSWORD =================
+exports.resetPassword = async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.json({ success: false, message: "All fields required" });
+  }
+
   try {
-    const { email, otp } = req.body;
-
-    const [rows] = await db.query(
-      "SELECT * FROM companies WHERE email = ?",
-      [email]
-    );
-
-    if (rows.length === 0)
-      return res.status(400).json({ message: "User not found" });
-
-    const company = rows[0];
-
-    if (company.otp !== otp)
-      return res.status(400).json({ message: "Invalid OTP" });
-
-    if (company.otp_expiry < Date.now())
-      return res.status(400).json({ message: "OTP expired" });
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     await db.query(
-      "UPDATE companies SET otp = NULL, otp_expiry = NULL WHERE email = ?",
-      [email]
+      "UPDATE companies SET password=? WHERE email=?",
+      [hashedPassword, email]
     );
 
-    res.json({
+    return res.json({
       success: true,
-      company,
+      message: "Password updated successfully",
     });
+
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    console.log(err);
+    return res.json({ success: false, message: "Server error" });
   }
 };
