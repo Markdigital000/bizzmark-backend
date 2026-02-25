@@ -5,6 +5,7 @@ require("dotenv").config();
  
 // 🔹 IMPORT ROUTES
 const companyRoutes = require("./routes/companyRoutes");
+const authRoutes = require("./routes/auth");
  
 const app = express();
  
@@ -35,7 +36,7 @@ app.use(
   cors({
     origin: [
       "https://bizzmarkindia.com",
-      "https://api.bizzmarkindia.com", // ✅ ADD THIS
+      "https://api.bizzmarkindia.com",
       "http://srv1235061.hstgr.cloud",
       "http://localhost:3000"
     ],
@@ -43,9 +44,8 @@ app.use(
   })
 );
  
-app.use(express.json({ limit: "25mb" }));
-app.use(express.urlencoded({ extended: true, limit: "25mb" }));
-
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
  
 // 🔹 STATIC UPLOADS
 app.use("/uploads", express.static("uploads"));
@@ -73,7 +73,8 @@ pool.getConnection((err, connection) => {
  
 // 🔹 COMPANY ROUTES
 app.use("/api/companies", companyRoutes);
- 
+app.use("/api/auth", authRoutes);
+
 // 🔹 HEALTH CHECK
 app.get("/api/health", (req, res) => {
   res.json({
